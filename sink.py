@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import os
 import time
@@ -65,7 +66,7 @@ PORT = 7465
 SCORE_THRESHOLD = 100
 MATCH_LIMIT = 5
 RETRIES = 3
-DELAY = 3
+DELAY = 5
 
 # Shelf keys
 TOKEN = 'token'
@@ -298,7 +299,6 @@ class Sink:
                     self._set_checksum(contact_url, checksum)
                 else:
                     print("FAILED: " + self.contacts[contact_url])
-            # add delay between requests not to be blocked by facebook
             time.sleep(delay)
 
     def _delete_photos(self, retries):
@@ -418,7 +418,7 @@ def main():
     shelf = shelve.open(args.filename)
     sink = Sink(shelf)
     if args.command == 'update':
-        sink.update(args.update_ignored, args.auto_only, args.score_threshold, args.match_limit, args.retries)
+        sink.update(args.update_ignored, args.auto_only, args.score_threshold, args.match_limit, args.retries, args.delay)
     elif args.command == 'edit':
         sink.edit(args.score_threshold, args.match_limit)
     elif args.command == 'delete':
@@ -439,7 +439,9 @@ def parse_args():
     param_parser.add_argument('-m', '--matches', dest='match_limit', metavar='MATCHES', default=MATCH_LIMIT, type=int, help='number of matches to show when searching contacts')
     retry_parser = argparse.ArgumentParser(add_help=False)
     retry_parser.add_argument('-r', '--retries', dest='retries', metavar='RETRIES', default=RETRIES, type=int, help='number of times to retry updating photos before failing')
-    update = subparsers.add_parser('update', parents=[file_parser, update_parser, param_parser, retry_parser], description=UDPATE_DESCRIPTION, help='update contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    delay_parser = argparse.ArgumentParser(add_help=False)
+    delay_parser.add_argument('-d', '--delay', dest='delay', metavar='DELAY', default=DELAY, type=int, help='seconds to wait between photo updates, avoid being blocked from facebook')
+    update = subparsers.add_parser('update', parents=[file_parser, update_parser, param_parser, retry_parser, delay_parser], description=UDPATE_DESCRIPTION, help='update contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     edit = subparsers.add_parser('edit', parents=[file_parser, param_parser], description=EDIT_DESCRIPTION, help='edit contact links', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     delete = subparsers.add_parser('delete', parents=[file_parser, delete_parser, retry_parser], description=DELETE_DESCRIPTION, help='delete contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     return parser.parse_args()
