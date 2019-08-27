@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import time
 import argparse
 import getpass
 import re
@@ -21,7 +22,6 @@ import gdata.contacts.client
 import gdata.gauth
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
-
 
 # Command descriptions
 DESCRIPTION = '''\
@@ -65,6 +65,7 @@ PORT = 7465
 SCORE_THRESHOLD = 100
 MATCH_LIMIT = 5
 RETRIES = 3
+DELAY = 3
 
 # Shelf keys
 TOKEN = 'token'
@@ -163,13 +164,16 @@ class Facebook:
 
     def get_profile_picture(self, friend_url, friend):
         profile_response = self.browser.open(self.base_url + friend_url)
+        blocked = "<title>Vous êtes temporairement bloqué</title>"
+        if blocked in profile_response.text:
+            print("BLOCKED! Retry later...")
+            exit(-1)
         user_id = re.search(self.user_id_regex, profile_response.text).group(1)
         picture_response = self.browser.open(self.graph_api_picture % user_id)
         picture_data = json.loads(picture_response.text)['data']
         if picture_data['is_silhouette']:
             return None
         return urllib.request.urlretrieve(picture_data['url'])[0]
-
 
 class GoogleContacts:
     client_id = '552213042372-tf77q58ch6t6o6tp3s40d66pqeumg10v'
@@ -264,9 +268,9 @@ class Sink:
         self.friends = self.facebook.get_friends()
         print("%d friends" % len(self.friends))
 
-    def update(self, update_ignored=False, auto_only=False, score_threshold=SCORE_THRESHOLD, match_limit=MATCH_LIMIT, retries=RETRIES):
+    def update(self, update_ignored=False, auto_only=False, score_threshold=SCORE_THRESHOLD, match_limit=MATCH_LIMIT, retries=RETRIES, delay=DELAY):
         self._update_links(update_ignored, auto_only, score_threshold, match_limit)
-        self._update_photos(retries)
+        self._update_photos(retries, delay)
 
     def edit(self, score_threshold=SCORE_THRESHOLD, match_limit=MATCH_LIMIT):
         self._edit_links(score_threshold, match_limit)
@@ -276,7 +280,7 @@ class Sink:
         if delete_links:
             self._delete_links()
 
-    def _update_photos(self, retries):
+    def _update_photos(self, retries, delay):
         print("Updating photos...")
         for contact_url in self.links:
             friend_url = self.links[contact_url]
@@ -294,6 +298,8 @@ class Sink:
                     self._set_checksum(contact_url, checksum)
                 else:
                     print("FAILED: " + self.contacts[contact_url])
+            # add delay between requests not to be blocked by facebook
+            time.sleep(delay)
 
     def _delete_photos(self, retries):
         print("Deleting photos...")
