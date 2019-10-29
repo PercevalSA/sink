@@ -3,6 +3,7 @@
 
 import os
 import time
+from datetime import datetime, timedelta
 import argparse
 import getpass
 import re
@@ -75,7 +76,7 @@ USERNAME = 'username'
 PASSWORD = 'password'
 LINKS = 'links'
 CHECKSUMS = 'checksums'
-UPDATE_TIME = 'update_time'
+UPDATE_TIME = 'update_times'
 
 class Facebook:
     base_url = 'https://mbasic.facebook.com'
@@ -259,7 +260,7 @@ class Sink:
         self.shelf = shelf
         self.links = self.shelf[LINKS] if LINKS in shelf else {}
         self.checksums = self.shelf[CHECKSUMS] if CHECKSUMS in shelf else {}
-        self.update_time = self.shelf[UPDATE_TIME] if UPDATE_TIME in shelf else {}
+        self.update_times = self.shelf[UPDATE_TIME] if UPDATE_TIME in shelf else {}
         print("Authorizing Google...")
         self.google = GoogleContacts(shelf)
         print("Getting Google contacts...")
@@ -286,11 +287,11 @@ class Sink:
     def _update_photos(self, retries, delay, expiry):
         print("Updating photos...")
         for contact_url in self.links:
-            if _is_expired(contact_url, expiry):
+            if self._is_expired(contact_url, expiry):
                 friend_url = self.links[contact_url]
-                if friend_url is not None
+                if friend_url is not None:
                     picture = self.facebook.get_profile_picture(friend_url, self.friends[friend_url])
-                    _set_update_time(contact_url)
+                    self._set_update_time(contact_url)
                     if picture is None:
                         print("NO PICTURE: " + self.contacts[contact_url])
                         continue
@@ -322,6 +323,8 @@ class Sink:
                 del self.links[contact_url]
                 if contact_url in self.checksums:
                     del self.checksums[contact_url]
+                if contact_url in self.update_times:
+                    del self.update_times[contact_url]
 
     def _update_links(self, update_ignored, auto_only, score_threshold, match_limit):
         print("Updating links...")
@@ -419,14 +422,21 @@ class Sink:
         self.shelf[CHECKSUMS] = self.checksums
 
     def _is_expired(self, contact_url, expiry):
-        limit_day = datetime.now() - timedelta(days=expiry)
-        if self.update_time[contact_url] < limit_day:
-            return True
+        if contact_url in self.update_times:
+            limit_day = datetime.now() - timedelta(days=expiry)
+            if self.update_times[contact_url] < limit_day:
+                return True
+            else:
+                return False
         else:
-            return False
+            return True
 
     def _set_update_time(self, contact_url):
-        self.update_time[contact_url] = datetime.now()
+        self.update_times[contact_url] = datetime.now()
+        self._save_update_times()
+
+    def _save_update_times(self):
+        self.shelf[UPDATE_TIME] = self.update_times
 
 
 def main():
@@ -457,7 +467,7 @@ def parse_args():
     retry_parser.add_argument('-r', '--retries', dest='retries', metavar='RETRIES', default=RETRIES, type=int, help='number of times to retry updating photos before failing')
     delay_parser = argparse.ArgumentParser(add_help=False)
     delay_parser.add_argument('-d', '--delay', dest='delay', metavar='DELAY', default=DELAY, type=int, help='seconds to wait between photo updates, avoid being blocked from facebook')
-    delay_parser.add_argument('-e', '--expiry', dest='expiry', metavar='EXPIRY', default='EXPIRY', type=int, help='number of days a photo is valid, the photo is updated if expired, mitigate blockade from facebook')
+    delay_parser.add_argument('-e', '--expiry', dest='expiry', metavar='EXPIRY', default=EXPIRY, type=int, help='number of days a photo is valid, the photo is updated if expired, mitigate blockade from facebook')
     update = subparsers.add_parser('update', parents=[file_parser, update_parser, param_parser, retry_parser, delay_parser], description=UDPATE_DESCRIPTION, help='update contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     edit = subparsers.add_parser('edit', parents=[file_parser, param_parser], description=EDIT_DESCRIPTION, help='edit contact links', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     delete = subparsers.add_parser('delete', parents=[file_parser, delete_parser, retry_parser], description=DELETE_DESCRIPTION, help='delete contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
