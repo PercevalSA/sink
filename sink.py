@@ -61,6 +61,13 @@ You will be presented with a prompt. There are three options.\n\
      This is helpful if a contact's name does not closely match their Facebook name.\n\
   3. Press Enter without typing anything to ignore the contact.\n\
      Sink will ignore this contact during updates.'''
+BLOCKED_MESSAGES = [
+    "You’re Temporarily Blocked",
+    "Se te bloqueó temporalmente",
+    "Vous êtes temporairement bloqué",
+    "Du wurdest vorrübergehend blockiert",
+    "O teu acesso está bloqueado temporariamente",
+    "Ti hanno bloccato temporaneamente"]
 
 # Default arguments
 PORT = 7465
@@ -167,8 +174,7 @@ class Facebook:
 
     def get_profile_picture(self, friend_url, friend):
         profile_response = self.browser.open(self.base_url + friend_url)
-        blocked = "<title>Vous êtes temporairement bloqué</title>"
-        if blocked in profile_response.text:
+        if profile_response.soup.title.text in BLOCKED_MESSAGES:
             print("BLOCKED! Retry later...")
             exit(-1)
         user_id = re.search(self.user_id_regex, profile_response.text).group(1)
