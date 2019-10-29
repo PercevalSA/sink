@@ -40,7 +40,9 @@ The Sink update command is invoked by the following command
 * `-s SCORE, --score SCORE` - score threshold to automatically link contacts.  Must be between 0 and 100.  The higher this number, the more similar contact and friends names must be to be automatically linked.  Defaults to 100 (perfect match).
 * `-m MATCHES, --matches MATCHES` - the number of results to show when searching for friends to link to a contact.  Defaults to 5.
 * `-r RETRIES, --retries RETRIES` - number of times to retry updating photos before failing.  Defaults to 3.
-* `-d DELAY, --delay DELAY` - seconds to wait between photo updates to avoid being blocked from facebook. Default to 5.
+* `-d DELAY, --delay DELAY` - seconds to wait between photo updates to avoid being blocked from facebook.  Default to 5.
+* `-e EXPIRY, --expiry EXPIRY` - number of days a photo is valid, the photo is updated if expired, mitigate blockade from facebook.  Default to 30.
+
 To view information about the Sink update command invoke help
 
     $ python sink.py update -h
@@ -85,7 +87,7 @@ To view information about the Sink delete command invoke help
 
 #### Facebook
 
-Sink scrapes your Facebook profile friends page to obtain a list of your friends' names and their Facebook usernames.  These usernames are then used to scrape your friends' profile pages to obtain their user ID.  This ID is then used to query the [Facebook Graph API](https://developers.facebook.com/docs/graph-api) (specifically [User Picture](https://developers.facebook.com/docs/graph-api/reference/user/picture)) to obtain their profile picture.
+Sink scrapes your Facebook profile friends page to obtain a list of your friends' names and their Facebook usernames.  These usernames are then used to scrape your friends' profile pages to obtain their user ID.  This ID is then used to query the [Facebook Graph API](https://developers.facebook.com/docs/graph-api) (specifically [User Picture](https://developers.facebook.com/docs/graph-api/reference/user/picture)) to obtain their profile picture. Sink limits the number of requests made to facebook not to be blocked.
 
 #### Google Contacts
 
