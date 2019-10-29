@@ -304,9 +304,9 @@ class Sink:
                         self._set_checksum(contact_url, checksum)
                     else:
                         print("FAILED: " + self.contacts[contact_url])
+                time.sleep(delay)
             else:
                 print("NOT EXPIRED: " + self.contacts[contact_url])
-            time.sleep(delay)
 
     def _delete_photos(self, retries):
         print("Deleting photos...")
