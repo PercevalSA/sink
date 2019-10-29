@@ -67,6 +67,7 @@ SCORE_THRESHOLD = 100
 MATCH_LIMIT = 5
 RETRIES = 3
 DELAY = 5
+EXPIRY = 30
 
 # Shelf keys
 TOKEN = 'token'
@@ -74,7 +75,7 @@ USERNAME = 'username'
 PASSWORD = 'password'
 LINKS = 'links'
 CHECKSUMS = 'checksums'
-
+UPDATE_TIME = 'update_time'
 
 class Facebook:
     base_url = 'https://mbasic.facebook.com'
@@ -258,6 +259,7 @@ class Sink:
         self.shelf = shelf
         self.links = self.shelf[LINKS] if LINKS in shelf else {}
         self.checksums = self.shelf[CHECKSUMS] if CHECKSUMS in shelf else {}
+        self.update_time = self.shelf[UPDATE_TIME] if UPDATE_TIME in shelf else {}
         print("Authorizing Google...")
         self.google = GoogleContacts(shelf)
         print("Getting Google contacts...")
@@ -269,9 +271,9 @@ class Sink:
         self.friends = self.facebook.get_friends()
         print("%d friends" % len(self.friends))
 
-    def update(self, update_ignored=False, auto_only=False, score_threshold=SCORE_THRESHOLD, match_limit=MATCH_LIMIT, retries=RETRIES, delay=DELAY):
+    def update(self, update_ignored=False, auto_only=False, score_threshold=SCORE_THRESHOLD, match_limit=MATCH_LIMIT, retries=RETRIES, delay=DELAY, expiry=EXPIRY):
         self._update_links(update_ignored, auto_only, score_threshold, match_limit)
-        self._update_photos(retries, delay)
+        self._update_photos(retries, delay, expiry)
 
     def edit(self, score_threshold=SCORE_THRESHOLD, match_limit=MATCH_LIMIT):
         self._edit_links(score_threshold, match_limit)
@@ -281,24 +283,28 @@ class Sink:
         if delete_links:
             self._delete_links()
 
-    def _update_photos(self, retries, delay):
+    def _update_photos(self, retries, delay, expiry):
         print("Updating photos...")
         for contact_url in self.links:
-            friend_url = self.links[contact_url]
-            if friend_url is not None:
-                picture = self.facebook.get_profile_picture(friend_url, self.friends[friend_url])
-                if picture is None:
-                    print("NO PICTURE: " + self.contacts[contact_url])
-                    continue
-                picture_bytes = open(picture, 'rb').read()
-                checksum = hashlib.md5(picture_bytes).hexdigest()
-                if contact_url in self.checksums and self.checksums[contact_url] == checksum:
-                    print("UNCHANGED: " + self.contacts[contact_url])
-                elif self._retry(lambda: self.google.update_photo(contact_url, picture), retries):
-                    print("UPDATED: " + self.contacts[contact_url])
-                    self._set_checksum(contact_url, checksum)
-                else:
-                    print("FAILED: " + self.contacts[contact_url])
+            if _is_expired(contact_url, expiry):
+                friend_url = self.links[contact_url]
+                if friend_url is not None
+                    picture = self.facebook.get_profile_picture(friend_url, self.friends[friend_url])
+                    _set_update_time(contact_url)
+                    if picture is None:
+                        print("NO PICTURE: " + self.contacts[contact_url])
+                        continue
+                    picture_bytes = open(picture, 'rb').read()
+                    checksum = hashlib.md5(picture_bytes).hexdigest()
+                    if contact_url in self.checksums and self.checksums[contact_url] == checksum:
+                        print("UNCHANGED: " + self.contacts[contact_url])
+                    elif self._retry(lambda: self.google.update_photo(contact_url, picture), retries):
+                        print("UPDATED: " + self.contacts[contact_url])
+                        self._set_checksum(contact_url, checksum)
+                    else:
+                        print("FAILED: " + self.contacts[contact_url])
+            else:
+                print("NOT EXPIRED: " + self.contacts[contact_url])
             time.sleep(delay)
 
     def _delete_photos(self, retries):
@@ -412,6 +418,16 @@ class Sink:
     def _save_checksums(self):
         self.shelf[CHECKSUMS] = self.checksums
 
+    def _is_expired(self, contact_url, expiry):
+        limit_day = datetime.now() - timedelta(days=expiry)
+        if self.update_time[contact_url] < limit_day:
+            return True
+        else:
+            return False
+
+    def _set_update_time(self, contact_url):
+        self.update_time[contact_url] = datetime.now()
+
 
 def main():
     args = parse_args()
@@ -441,6 +457,7 @@ def parse_args():
     retry_parser.add_argument('-r', '--retries', dest='retries', metavar='RETRIES', default=RETRIES, type=int, help='number of times to retry updating photos before failing')
     delay_parser = argparse.ArgumentParser(add_help=False)
     delay_parser.add_argument('-d', '--delay', dest='delay', metavar='DELAY', default=DELAY, type=int, help='seconds to wait between photo updates, avoid being blocked from facebook')
+    delay_parser.add_argument('-e', '--expiry', dest='expiry', metavar='EXPIRY', default='EXPIRY', type=int, help='number of days a photo is valid, the photo is updated if expired, mitigate blockade from facebook')
     update = subparsers.add_parser('update', parents=[file_parser, update_parser, param_parser, retry_parser, delay_parser], description=UDPATE_DESCRIPTION, help='update contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     edit = subparsers.add_parser('edit', parents=[file_parser, param_parser], description=EDIT_DESCRIPTION, help='edit contact links', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     delete = subparsers.add_parser('delete', parents=[file_parser, delete_parser, retry_parser], description=DELETE_DESCRIPTION, help='delete contact photos', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
